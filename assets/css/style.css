@@ -1,1 +1,17 @@
 
+:root{--primary:#FFD700;--accent:#2E1F47;--bg:#fffbe6}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:#222}
+header{display:flex;align-items:center;gap:12px;padding:12px;background:linear-gradient(90deg,var(--accent),#3a2b5a);color:white}
+header img{width:56px;height:56px;border-radius:10px;background:white;padding:6px}
+.container{padding:14px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+button{background:var(--primary);border:none;color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:700}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:12px}
+.card{background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,0.06)}
+.form-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.input, select{padding:8px;border-radius:6px;border:1px solid #ccc;min-width:140px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.footer{padding:12px;text-align:center;color:#444;font-size:13px;margin-top:18px}
+.note{font-size:13px;color:#555;margin-top:8px}
