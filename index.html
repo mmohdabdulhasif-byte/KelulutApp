@@ -1,18 +1,17 @@
 <!doctype html>
-<html lang='ms'>
+<html lang="ms">
 <head>
-
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>An-Naas Kelulut Bekeng</title>
   <meta name="theme-color" content="#FFD700">
 
-  <!-- ✅ Betulkan semua path jadi relative -->
+  <!-- ✅ Betulkan path -->
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./assets/css/style.css">
   <link rel="stylesheet" href="./assets/css/redesign_dark.css">
+  <link rel="icon" href="./assets/icons/favicon.svg" type="image/svg+xml">
 
-  <!-- ✅ Google Identity Services -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -23,9 +22,16 @@
     .brand .main { font-weight:700; font-size:1.2rem; }
     .brand .sub { font-size:0.9rem; opacity:0.8; }
     .container { padding:20px; }
-    .controls button { margin:4px; }
+    .controls button { margin:4px; cursor:pointer; }
     .card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-top:20px; }
     .card { background:#1b1e24; padding:20px; border-radius:10px; text-align:center; }
+    section.page { display:none; animation: fadeIn 0.3s ease; }
+    section.active { display:block; }
+    @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
+
+    footer { margin-top:20px;text-align:center;opacity:0.7; }
+
+    /* GDrive & Notif UI */
     #gdrive-ui { position:fixed; right:12px; bottom:12px; z-index:9999; display:flex; gap:8px; flex-wrap:wrap; }
     button.gbtn { padding:10px 14px; border:none; border-radius:8px; font-weight:600; cursor:pointer; transition: all 0.2s ease; }
     button.gbtn:hover { opacity: 0.9; transform: translateY(-1px); }
@@ -33,518 +39,17 @@
     button.backup { background:#34a853; color:white; }
     button.restore { background:#fbbc05; color:#000; }
     button.logout { background:#ea4335; color:white; }
-    .status-connected { color:#34a853; }
-    .status-disconnected { color:#ea4335; }
 
-    /* 🔔 Notification UI */
-    #notifyBox {
-      position: fixed;
-      right: 20px;
-      bottom: 20px;
-      z-index: 10000;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      font-family: "Segoe UI", sans-serif;
-    }
-    .notify {
-      padding: 12px 16px;
-      border-radius: 10px;
-      color: #fff;
-      font-weight: 600;
-      min-width: 220px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.3s ease;
-    }
+    #notifyBox { position: fixed; right: 20px; bottom: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; font-family: "Segoe UI", sans-serif; }
+    .notify { padding: 12px 16px; border-radius: 10px; color: #fff; font-weight: 600; min-width: 220px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); opacity: 0; transform: translateY(20px); transition: all 0.3s ease; }
     .notify.show { opacity: 1; transform: translateY(0); }
     .notify.success { background: #34a853; }
     .notify.error { background: #ea4335; }
     .notify.info { background: #1a73e8; }
   </style>
-
 </head>
+
 <body>
-<div class="header">
-    <div class="brand">
-      <img src="./assets/logo.png" alt="logo">
-      <div class="title">
-        <div class="main">An-Naas Kelulut Bekeng</div>
-<div class="container"><div class="controls"><button data-show="sec-care">Care</button><button data-show="sec-charts">Charts</button><button data-show="sec-colonies">Colonies</button><button data-show="sec-harvests">Harvests</button><button data-show="sec-index">Dashboard</button><button data-show="sec-inventory">Inventory</button><button data-show="sec-invoices">Invoices</button><button data-show="sec-offline">Offline</button><button data-show="sec-reports">Reports</button><button data-show="sec-sales">Sales</button><button data-show="sec-settings">Settings</button><span id="driveStatus" style="margin-left:12px">Drive: Disconnected ❌</span></div>
-<section id="sec-care" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Penjagaan</h2>
-
-  <form id="formCare" class="form-row">
-    <select id="careColony" class="input"></select>
-    <input id="careTitle" class="input" placeholder="Apa yang perlu dibuat">
-    <input id="careRemind" class="input" type="datetime-local">
-    <button type="submit">Tambah Log Penjagaan</button>
-  </form>
-
-  <table id="careTable">
-    <thead>
-      <tr>
-        <th>Koloni</th>
-        <th>Tugas</th>
-        <th>Remind At</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('careLogs')">Export Excel</button>
-    <button onclick="exportReportPDF('careTable')">Export PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- libs -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-<!-- app scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<!-- Google Drive PKCE Integration -->
-<script src="./drive_pkce.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleReminders==='function') scheduleReminders();
-    
-    // Update drive status from PKCE
-    if(typeof DrivePKCE !== 'undefined') {
-      setTimeout(() => {
-        DrivePKCE.handleAuthCallback();
-      }, 100);
-    }
-  });
-</script>
-
-<!-- Theme toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-charts" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Carta Prestasi Hasil Tuai</h2>
-
-  <canvas id="chartCanvas" style="width:100%;max-width:800px;height:400px;background:var(--card);border-radius:12px;padding:10px;"></canvas>
-
-  <div class="note">
-    <button onclick="renderChart()">Refresh Chart</button>
-    <button onclick="exportStoreXLSX('harvests')">Export Harvests Excel</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App Scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-    renderChart();
-  });
-
-  // Fungsi carta interaktif
-  function renderChart(){
-    const ctx = document.getElementById('chartCanvas').getContext('2d');
-    if(window.myChart){ window.myChart.destroy(); }
-
-    const data = {
-      labels: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogos', 'Sep', 'Okt', 'Nov', 'Dis'],
-      datasets: [{
-        label: 'Hasil Tuai (kg)',
-        data: [12, 15, 10, 18, 22, 30, 28, 35, 25, 40, 38, 45],
-        borderColor: '#FFD700',
-        backgroundColor: 'rgba(255,215,0,0.2)',
-        tension: 0.4,
-        fill: true,
-        borderWidth: 2,
-        pointRadius: 4
-      }]
-    };
-
-    const options = {
-      plugins: {
-        legend: { labels: { color: '#FFD700' } },
-        title: { display: false }
-      },
-      scales: {
-        x: { ticks: { color: '#e6e7e9' }, grid: { color: '#222' } },
-        y: { ticks: { color: '#e6e7e9' }, grid: { color: '#222' } }
-      }
-    };
-
-    window.myChart = new Chart(ctx, { type: 'line', data, options });
-  }
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-colonies" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Koloni</h2>
-
-  <form id="formColony" class="form-row">
-    <input id="colonyName" class="input" placeholder="Nama Koloni" required>
-    <select id="colonyStatus" class="input">
-      <option value="active">Aktif</option>
-      <option value="rest">Rehat</option>
-      <option value="problem">Bermasalah</option>
-    </select>
-    <input id="colonyStart" type="date" class="input">
-    <button type="submit">Tambah Koloni</button>
-  </form>
-
-  <table id="colonyTable">
-    <thead>
-      <tr><th>Nama</th><th>Status</th><th>Mula</th><th></th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('colonies')">Export Excel</button>
-    <button onclick="exportReportPDF('colonyTable')">Export PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libs -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-  });
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-harvests" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Hasil Tuai</h2>
-
-  <form id="formHarvest" class="form-row">
-    <select id="harvestColony" class="input"></select>
-    <input id="harvestKg" class="input" type="number" step="0.1" placeholder="Berat (kg)">
-    <input id="harvestDate" class="input" type="date">
-    <button type="submit">Rekod Hasil</button>
-  </form>
-
-  <table id="harvestTable">
-    <thead>
-      <tr><th>Koloni</th><th>Kg</th><th>Tarikh</th><th></th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('harvests')">Export Excel</button>
-    <button onclick="exportReportPDF('harvestTable')">Export PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libs -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-  });
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-index" class="app-section" style="display:none;">
-
   <div class="header">
     <div class="brand">
       <img src="./assets/logo.png" alt="logo">
@@ -556,30 +61,44 @@ function toggleTheme(){
   </div>
 
   <div class="container">
+    <!-- ✅ Tukar semua butang ke SPA navigation -->
     <div class="controls">
-      <a href="./index.html"><button>Dashboard</button></a>
-      <a href="./colonies.html"><button>Koloni</button></a>
-      <a href="./harvests.html"><button>Hasil</button></a>
-      <a href="./care.html"><button>Penjagaan</button></a>
-      <a href="./reports.html"><button>Laporan</button></a>
-      <a href="./sales.html"><button>Jualan</button></a>
-      <a href="./inventory.html"><button>Stok</button></a>
-      <a href="./invoices.html"><button>Invois</button></a>
-      <a href="./charts.html"><button>Graf</button></a>
+      <button onclick="showPage('dashboard')">Dashboard</button>
+      <button onclick="showPage('colonies')">Koloni</button>
+      <button onclick="showPage('harvests')">Hasil</button>
+      <button onclick="showPage('care')">Penjagaan</button>
+      <button onclick="showPage('reports')">Laporan</button>
+      <button onclick="showPage('sales')">Jualan</button>
+      <button onclick="showPage('inventory')">Stok</button>
+      <button onclick="showPage('invoices')">Invois</button>
+      <button onclick="showPage('charts')">Graf</button>
       <span id="driveStatus" style="margin-left:12px">Drive: Disconnected ❌</span>
     </div>
 
-    <h2>Dashboard</h2>
-    <div class="card-grid">
-      <div class="card"><strong id="countColonies">0</strong><div>Jumlah Koloni</div></div>
-      <div class="card"><strong id="totalHarvest">0</strong><div>Jumlah Hasil (kg)</div></div>
-      <div class="card"><strong id="monthlySales">0</strong><div>Jualan Bulanan (RM)</div></div>
-      <div class="card"><strong id="dueCare">0</strong><div>Penjagaan Hari Ini</div></div>
-    </div>
-    <footer style="margin-top:20px;text-align:center;opacity:0.7;">Kelulut Management System</footer>
+    <!-- ✅ Setiap page dalam satu section -->
+    <section id="dashboard" class="page active">
+      <h2>Dashboard</h2>
+      <div class="card-grid">
+        <div class="card"><strong id="countColonies">0</strong><div>Jumlah Koloni</div></div>
+        <div class="card"><strong id="totalHarvest">0</strong><div>Jumlah Hasil (kg)</div></div>
+        <div class="card"><strong id="monthlySales">0</strong><div>Jualan Bulanan (RM)</div></div>
+        <div class="card"><strong id="dueCare">0</strong><div>Penjagaan Hari Ini</div></div>
+      </div>
+    </section>
+
+    <section id="colonies" class="page"><h2>Koloni</h2><p>Senarai koloni lebah kelulut anda.</p></section>
+    <section id="harvests" class="page"><h2>Hasil</h2><p>Rekod hasil madu kelulut.</p></section>
+    <section id="care" class="page"><h2>Penjagaan</h2><p>Jadual penjagaan dan penyelenggaraan koloni.</p></section>
+    <section id="reports" class="page"><h2>Laporan</h2><p>Analisis data dan laporan mingguan/bulanan.</p></section>
+    <section id="sales" class="page"><h2>Jualan</h2><p>Urus jualan madu dan hasil kelulut.</p></section>
+    <section id="inventory" class="page"><h2>Stok</h2><p>Pantau inventori dan stok botol.</p></section>
+    <section id="invoices" class="page"><h2>Invois</h2><p>Senarai invois pelanggan.</p></section>
+    <section id="charts" class="page"><h2>Graf</h2><p>Paparan visual graf hasil dan jualan.</p></section>
+
+    <footer>Kelulut Management System</footer>
   </div>
 
-  <!-- Drive UI -->
+  <!-- ✅ Google Drive UI -->
   <div id="gdrive-ui">
     <button class="gbtn connect" onclick="manualConnect()">Connect Google Drive</button>
     <button class="gbtn backup" onclick="manualBackup()">Backup Now</button>
@@ -587,569 +106,24 @@ function toggleTheme(){
     <button class="gbtn logout" onclick="manualSignOut()">Logout</button>
   </div>
 
-  <!-- 🔔 Notification Box -->
   <div id="notifyBox"></div>
 
-  <!-- ✅ Betulkan path JS -->
+  <!-- ✅ JS -->
   <script src="./js/db.js"></script>
   <script src="./js/main.js"></script>
 
-  <!-- Google Drive + Auto Backup + Notification -->
-  <!-- (semua kod Drive kekal sama) -->
-  
-  <!-- ✅ Service Worker betulkan path -->
   <script>
+    // SPA Navigation
+    function showPage(pageId) {
+      document.querySelectorAll("section.page").forEach(sec => sec.classList.remove("active"));
+      document.getElementById(pageId).classList.add("active");
+      window.scrollTo(0, 0);
+    }
+
+    // Register Service Worker
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
     }
   </script>
-
-</section>
-<section id="sec-inventory" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Inventori Stok</h2>
-
-  <form id="formInv" class="form-row">
-    <input id="invItem" class="input" placeholder="Nama Barang">
-    <input id="invQty" class="input" type="number" placeholder="Kuantiti">
-    <button type="submit">Tambah Stok</button>
-  </form>
-
-  <table id="invTable">
-    <thead>
-      <tr><th>Item</th><th>Kuantiti</th><th></th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('inventory')">Export Excel</button>
-    <button onclick="exportReportPDF('invTable')">Export PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App Scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-  });
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-invoices" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Rekod Invois</h2>
-
-  <form id="formInvc" class="form-row">
-    <input id="invcCustomer" class="input" placeholder="Nama Pelanggan">
-    <input id="invcTotal" class="input" type="number" placeholder="Jumlah (RM)">
-    <input id="invcDate" class="input" type="date">
-    <button type="submit">Tambah Invois</button>
-  </form>
-
-  <table id="invcTable">
-    <thead>
-      <tr><th>Pelanggan</th><th>Jumlah</th><th>Tarikh</th><th></th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('invoices')">Export Excel</button>
-    <button onclick="exportReportPDF('invcTable')">Export PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App Scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-  });
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-offline" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container" style="text-align:center;margin-top:60px;">
-  <h2>Mod Luar Talian</h2>
-  <p>Anda sedang offline. Beberapa ciri mungkin tidak tersedia.</p>
-  <p>Sila sambung semula ke internet atau gunakan data yang disimpan.</p>
-  <button onclick="window.location.reload()" style="margin-top:20px;padding:10px 18px;border:none;border-radius:8px;background:#FFD700;color:#000;font-weight:600;">Cuba Semula</button>
-</div>
-
-<footer style="text-align:center;margin-top:50px;">Kelulut Management System</footer>
-
-<!-- Tema -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-reports" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Laporan</h2>
-
-  <div id="reportContainer" class="report-card">
-    <h3>Ringkasan Operasi</h3>
-    <p>Jumlah Koloni: <strong id="rCountColonies">0</strong></p>
-    <p>Jumlah Hasil (kg): <strong id="rTotalHarvest">0</strong></p>
-    <p>Jualan Bulanan (RM): <strong id="rMonthlySales">0</strong></p>
-  </div>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('colonies')">Export Koloni Excel</button>
-    <button onclick="exportStoreXLSX('harvests')">Export Hasil Excel</button>
-    <button onclick="exportReportPDF('reportContainer')">Generate PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App Scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-  });
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-
-</section>
-<section id="sec-sales" class="app-section" style="display:none;">
-
-
-<!-- Header tanpa navigasi -->
-
-      <div class="sub">Premium Kelulut Honey Management</div>
-    </div>
-  </div>
-</div>
-
-<!-- Kandungan utama -->
-<div class="container">
-  <div class="controls">
-    <a href="index.html"><button>Dashboard</button></a>
-    <a href="colonies.html"><button>Koloni</button></a>
-    <a href="harvests.html"><button>Hasil</button></a>
-    <a href="care.html"><button>Penjagaan</button></a>
-    <a href="reports.html"><button>Laporan</button></a>
-    <a href="sales.html"><button>Jualan</button></a>
-    <a href="inventory.html"><button>Stok</button></a>
-    <a href="invoices.html"><button>Invois</button></a>
-    <a href="charts.html"><button>Graf</button></a>
-    <span id="driveStatus" style="margin-left:12px">Drive: Disconnected</span>
-  </div>
-
-  <h2>Rekod Jualan</h2>
-
-  <form id="formSale" class="form-row">
-    <input id="saleCustomer" class="input" placeholder="Nama Pelanggan">
-    <input id="saleQty" class="input" type="number" placeholder="Kuantiti">
-    <input id="saleAmount" class="input" type="number" placeholder="Jumlah (RM)">
-    <input id="saleDate" class="input" type="date">
-    <button type="submit">Tambah Jualan</button>
-  </form>
-
-  <table id="salesTable">
-    <thead>
-      <tr><th>Pelanggan</th><th>Kuantiti</th><th>Jumlah</th><th>Tarikh</th><th></th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="note">
-    <button onclick="exportStoreXLSX('sales')">Export Excel</button>
-    <button onclick="exportReportPDF('salesTable')">Export PDF</button>
-  </div>
-</div>
-
-<footer>Kelulut Management System</footer>
-
-<!-- Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
-
-<!-- App Scripts -->
-<script src"./js/db.js"></script>
-<script src"./js/drive-backup.js"></script>
-<script src"./js/notifications.js"></script>
-<script src"./js/report.js"></script>
-<script src"./js/excel.js"></script>
-<script src"./js/main.js"></script>
-
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.warn('SW failed',e));
-  }
-  window.addEventListener('load', async ()=>{
-    if(typeof initDB==='function') await initDB();
-    if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-    if(typeof scheduleReminders==='function') scheduleReminders();
-  });
-</script>
-
-<!-- Dark mode toggle -->
-<script>
-(function(){
-  try{
-    if(localStorage.theme==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-    }
-  }catch(e){}
-})();
-function toggleTheme(){
-  try{
-    const t = localStorage.theme==='light'?'dark':'light';
-    if(t==='light'){
-      document.documentElement.style.setProperty('--bg','#f6f7f9');
-      document.documentElement.style.setProperty('--card','#ffffff');
-      document.documentElement.style.setProperty('--text','#0b0c10');
-      document.documentElement.style.setProperty('--muted','#5b6166');
-      localStorage.theme='light';
-    } else {
-      document.documentElement.style.setProperty('--bg','#0b0c10');
-      document.documentElement.style.setProperty('--card','#0f1115');
-      document.documentElement.style.setProperty('--text','#e6e7e9');
-      document.documentElement.style.setProperty('--muted','#9aa0a6');
-      localStorage.theme='dark';
-    }
-  }catch(e){}
-}
-</script>
-
-<script src"./js/attachments.js"></script>
-<script src"./js/sales_custom.js"></script>
-
-<script>
-document.addEventListener('click', function(e){
-  if(e.target && e.target.classList && e.target.classList.contains('btn-invoice')){
-    const id = e.target.getAttribute('data-id');
-    const sales = JSON.parse(localStorage.getItem('kelulut_sales_v1')||'[]');
-    const s = sales.find(x=>x.id===id);
-    if(s){ try{ generateInvoicePDF(s); }catch(e){ console.error(e); alert('Gagal jana PDF'); } }
-  }
-});
-</script>
-
-
-</section>
-<section id="sec-settings" class="app-section" style="display:none;">
-
-<h2>Settings & Backup</h2>
-<p>Nota: Google Drive sync hanya berfungsi bila dibuka dalam Safari (tab), bukan PWA standalone di iOS.</p>
-<label>Google OAuth Web Client ID:</label><input id="gClientId" placeholder="client-id.apps.googleusercontent.com" style="width:100%;padding:8px"><br><br>
-<label>Backup filename prefix:</label><input id="backupPrefix" value="kelulut_backup_" style="width:100%;padding:8px"><br><br>
-<button id="btnSignIn">Sign in to Google Drive (Safari only)</button>
-<button id="btnBackup">Backup to Drive</button>
-<button id="btnRestore">Restore from Drive</button>
-<button id="btnExportZip">Export ZIP to Files</button>
-<pre id="status" style="background:#f4f4f4;padding:8px;margin-top:8px"></pre>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src"./js/drive_sync.js"></script>
-
-<label>Upload Logo (PNG):</label>
-<input id="kelulutLogoUpload" type="file" accept="image/png,.png" style="width:100%;padding:6px">
-<button id="btnRemoveLogo" style="display:block;margin-top:8px">Remove Logo</button>
-<script>
-document.getElementById("kelulutLogoUpload").addEventListener("change", function(e){
-  const f = e.target.files[0]; if(!f) return;
-  const fr = new FileReader();
-  fr.onload = function(ev){ localStorage.setItem("kelulut_logo_data", ev.target.result); alert("Logo disimpan (untuk invois)."); };
-  fr.readAsDataURL(f);
-});
-document.getElementById("btnRemoveLogo").addEventListener("click", function(){ localStorage.removeItem('kelulut_logo_data'); alert('Logo dikeluarkan'); });
-</script>
-
-
-</section>
-</div>
-
-<script>
-function showSection(id){
-  document.querySelectorAll('.app-section').forEach(s=>s.style.display='none');
-  const el=document.getElementById(id);
-  if(el) el.style.display='block';
-  if(location.hash !== '#'+id) history.replaceState(null,'','#'+id);
-  if(typeof onSectionShow==='function'){ try{ onSectionShow(id);}catch(e){console.error(e);} }
-}
-window.addEventListener('DOMContentLoaded', ()=>{
-  const h = location.hash ? location.hash.substring(1) : null;
-  const defaultId = 'sec-index';
-  showSection(h? h : defaultId);
-  document.querySelectorAll('[data-show]').forEach(btn=>{
-    btn.addEventListener('click', e=>{ e.preventDefault(); showSection(btn.getAttribute('data-show')); });
-  });
-});
-</script>
-
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./service-worker.js").catch(()=>{});}</script>
-
 </body>
 </html>
