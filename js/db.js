@@ -1,110 +1,149 @@
-// === db.js ===
-// An-Naas Kelulut Bekeng - Local Database (v2.2 - 2025)
+/**
+ * db.js
+ * Simple promise-based IndexedDB helper for KelulutApp
+ *
+ * Object stores: colonies, harvests, sales, invoices, inventory
+ * Each record has at minimum: id, createdAt, updatedAt, ...custom fields
+ *
+ * Usage:
+ *  await db.init();
+ *  const id = await db.add('colonies', { name: 'K1', notes: '' });
+ *  const all = await db.getAll('colonies');
+ */
 
-const STORE_KEY = 'kelulut_data_v2';
+(function(window){
+  const DB_NAME = "KelulutDB";
+  const DB_VERSION = 1;
+  const STORES = ["colonies","harvests","sales","invoices","inventory"];
 
-// ====== UTILITIES ======
-function readStore() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    return raw ? JSON.parse(raw) : defaultData();
-  } catch (e) {
-    console.error('readStore error:', e);
-    return defaultData();
-  }
-}
+  const openDB = () => {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        for (const s of STORES) {
+          if (!db.objectStoreNames.contains(s)) {
+            db.createObjectStore(s, { keyPath: "id" });
+          }
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  };
 
-function writeStore(obj) {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(obj));
-    localStorage.setItem('kelulut_lastUpdate', new Date().toISOString());
-  } catch (e) {
-    console.error('writeStore error:', e);
-  }
-}
+  const promisifyRequest = (req) => {
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  };
 
-function defaultData() {
-  return { colonies: [], harvests: [], careLogs: [], sales: [], inventory: [], invoices: [] };
-}
+  const genId = () => {
+    // readable unique id
+    return `${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+  };
 
-// ====== INITIALIZATION ======
-async function initDB() {
-  if (!localStorage.getItem(STORE_KEY)) {
-    writeStore(defaultData());
-    localStorage.setItem('kelulut_lastBackup', new Date(0).toISOString());
-    console.log('Kelulut DB initialized');
-  }
-}
+  const runTx = async (storeName, mode, cb) => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, mode);
+      const store = tx.objectStore(storeName);
+      let result;
+      try {
+        result = cb(store);
+      } catch (err) {
+        reject(err);
+      }
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error);
+    });
+  };
 
-// ====== CRUD OPERATIONS ======
-async function getAll(store) {
-  const s = readStore();
-  return s[store] || [];
-}
+  const api = {
+    init: async function(){
+      await openDB();
+      return true;
+    },
 
-async function insert(store, item) {
-  const s = readStore();
-  item.id = item.id || ('id' + Date.now());
-  s[store] = s[store] || [];
-  s[store].push(item);
-  writeStore(s);
-  return item;
-}
+    add: async function(storeName, item){
+      if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+      if (!item.id) item.id = genId();
+      const now = new Date().toISOString();
+      item.createdAt = item.createdAt || now;
+      item.updatedAt = now;
+      await runTx(storeName, "readwrite", (store) => {
+        store.add(item);
+      });
+      return item.id;
+    },
 
-async function update(store, id, changes) {
-  const s = readStore();
-  s[store] = s[store] || [];
-  const idx = s[store].findIndex(x => x.id == id);
-  if (idx === -1) return null;
-  s[store][idx] = Object.assign({}, s[store][idx], changes);
-  writeStore(s);
-  return s[store][idx];
-}
+    put: async function(storeName, item){
+      if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+      if (!item.id) item.id = genId();
+      item.updatedAt = new Date().toISOString();
+      await runTx(storeName, "readwrite", (store) => {
+        store.put(item);
+      });
+      return item.id;
+    },
 
-async function remove(store, id) {
-  const s = readStore();
-  s[store] = s[store] || [];
-  s[store] = s[store].filter(x => x.id != id);
-  writeStore(s);
-}
+    get: async function(storeName, id){
+      if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+      return runTx(storeName, "readonly", (store) => {
+        const req = store.get(id);
+        return promisifyRequest(req);
+      });
+    },
 
-// ====== EXPORT / IMPORT ======
-async function exportAllData() {
-  return JSON.stringify({ exportedAt: new Date().toISOString(), data: readStore() }, null, 2);
-}
+    getAll: async function(storeName){
+      if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+      return runTx(storeName, "readonly", (store) => {
+        const req = store.getAll();
+        return promisifyRequest(req);
+      });
+    },
 
-async function importData(jsonStr) {
-  try {
-    const obj = JSON.parse(jsonStr);
-    if (obj.data) writeStore(obj.data);
-    else writeStore(obj);
-    return true;
-  } catch (e) {
-    console.error(e);
-    return false;
-  }
-}
+    delete: async function(storeName, id){
+      if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+      await runTx(storeName, "readwrite", (store) => {
+        store.delete(id);
+      });
+      return true;
+    },
 
-// ====== FOR GOOGLE DRIVE RESTORE ======
-async function importAllData(raw) {
-  try {
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (parsed.data) writeStore(parsed.data);
-    else writeStore(parsed);
-    localStorage.setItem('kelulut_lastRestore', new Date().toISOString());
-    return true;
-  } catch (e) {
-    console.error('importAllData error:', e);
-    return false;
-  }
-}
+    clear: async function(storeName){
+      if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+      await runTx(storeName, "readwrite", (store) => {
+        store.clear();
+      });
+      return true;
+    },
 
-// ====== EXPORT WINDOW ======
-window.initDB = initDB;
-window.getAll = getAll;
-window.insert = insert;
-window.update = update;
-window.remove = remove;
-window.exportAllData = exportAllData;
-window.importData = importData;
-window.importAllData = importAllData;
+    exportAll: async function(){
+      // Return object with all stores
+      const out = {};
+      for (const s of STORES){
+        out[s] = await this.getAll(s);
+      }
+      return out;
+    },
+
+    importAll: async function(obj){
+      // obj is {storeName: [items...], ...}
+      for (const s of STORES){
+        if (Array.isArray(obj[s])){
+          for (const item of obj[s]){
+            if (!item.id) item.id = genId();
+            await this.put(s, item);
+          }
+        }
+      }
+      return true;
+    }
+  };
+
+  // expose
+  window.db = api;
+
+})(window);
