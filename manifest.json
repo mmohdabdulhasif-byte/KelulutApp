@@ -1,7 +1,7 @@
 {
   "name": "An-Naas Kelulut Bekeng",
   "short_name": "KelulutApp",
-  "start_url": "index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#FFD700",
   "theme_color": "#FFD700",
