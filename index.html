@@ -24,6 +24,23 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
+  <!-- Service Worker Check untuk GitHub Pages -->
+  <script>
+    // Check if service worker is supported and register
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(registration => {
+          console.log('SW registered: ', registration);
+        })
+        .catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+        });
+    }
+
+    // Fallback untuk GitHub Pages
+    window.isGitHubPages = window.location.hostname.includes('github.io');
+  </script>
+
   <style>
     /* SPA Navigation Styles */
     .page {
@@ -61,6 +78,16 @@
 
     /* Offline Page Styles */
     .offline-container { text-align: center; margin-top: 60px; }
+
+    /* Form Styles */
+    .form-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .input { padding: 8px 12px; border: 1px solid #444; border-radius: 6px; background: #1a1d23; color: white; }
+    .note { margin-top: 20px; padding: 10px; background: #1a1d23; border-radius: 6px; }
+
+    /* Table Styles */
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #444; }
+    th { background: #2a2d33; }
 
     /* 🔔 Notification UI */
     #notifyBox {
@@ -339,94 +366,610 @@
   <!-- 🔔 Notification Box -->
   <div id="notifyBox"></div>
 
-  <!-- App Scripts -->
-  <script src="./js/db.js"></script>
-  <script src="./js/drive-backup.js"></script>
-  <script src="./js/notifications.js"></script>
-  <script src="./js/report.js"></script>
-  <script src="./js/excel.js"></script>
-  <script src="./js/main.js"></script>
-  <script src="./js/attachments.js"></script>
-  <script src="./js/sales_custom.js"></script>
-  <script src="./js/drive_sync.js"></script>
-  <script src="./drive_pkce.js"></script>
+  <!-- Debug Panel untuk GitHub Pages -->
+  <div id="debugPanel" style="position:fixed; bottom:10px; left:10px; background:rgba(0,0,0,0.8); color:white; padding:10px; border-radius:5px; font-size:12px; display:none; z-index:10000;">
+    <div id="debugInfo">Debug info will appear here</div>
+    <button onclick="toggleDebug()" style="margin:2px; padding:4px;">Toggle Debug</button>
+    <button onclick="clearLocalData()" style="margin:2px; padding:4px;">Clear Data</button>
+    <button onclick="testAddColony()" style="margin:2px; padding:4px;">Test Add Colony</button>
+  </div>
 
-  <!-- SPA Navigation Script -->
+<!-- SEMUA JAVASCRIPT DALAM SATU FILE -->
   <script>
-    // Navigation between pages
+    // =============================================
+    // db.js - Database Functions
+    // =============================================
+    (function(window){
+      const DB_NAME = "KelulutDB";
+      const DB_VERSION = 1;
+      const STORES = ["colonies","harvests","sales","invoices","inventory","careLogs"];
+
+      const openDB = () => {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB_NAME, DB_VERSION);
+          req.onerror = () => {
+            console.error('IndexedDB error:', req.error);
+            reject(req.error);
+          };
+          req.onsuccess = () => {
+            console.log('IndexedDB initialized successfully');
+            resolve(req.result);
+          };
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            console.log('Upgrading database...');
+            for (const s of STORES) {
+              if (!db.objectStoreNames.contains(s)) {
+                db.createObjectStore(s, { keyPath: "id" });
+                console.log('Created object store:', s);
+              }
+            }
+          };
+        });
+      };
+
+      const promisifyRequest = (req) => {
+        return new Promise((resolve, reject) => {
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      };
+
+      const genId = () => {
+        return `${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+      };
+
+      const runTx = async (storeName, mode, cb) => {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(storeName, mode);
+          const store = tx.objectStore(storeName);
+          let result;
+          try {
+            result = cb(store);
+          } catch (err) {
+            reject(err);
+          }
+          tx.oncomplete = () => resolve(result);
+          tx.onerror = () => reject(tx.error);
+        });
+      };
+
+      const api = {
+        init: async function(){
+          console.log('Initializing database...');
+          try {
+            const db = await openDB();
+            console.log('Database ready');
+            return true;
+          } catch (error) {
+            console.error('Database initialization failed:', error);
+            throw error;
+          }
+        },
+
+        add: async function(storeName, item){
+          if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+          if (!item.id) item.id = genId();
+          const now = new Date().toISOString();
+          item.createdAt = item.createdAt || now;
+          item.updatedAt = now;
+          await runTx(storeName, "readwrite", (store) => {
+            store.add(item);
+          });
+          return item.id;
+        },
+
+        put: async function(storeName, item){
+          if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+          if (!item.id) item.id = genId();
+          item.updatedAt = new Date().toISOString();
+          await runTx(storeName, "readwrite", (store) => {
+            store.put(item);
+          });
+          return item.id;
+        },
+
+        get: async function(storeName, id){
+          if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+          return runTx(storeName, "readonly", (store) => {
+            const req = store.get(id);
+            return promisifyRequest(req);
+          });
+        },
+
+        getAll: async function(storeName){
+          if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+          return runTx(storeName, "readonly", (store) => {
+            const req = store.getAll();
+            return promisifyRequest(req);
+          });
+        },
+
+        delete: async function(storeName, id){
+          if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+          await runTx(storeName, "readwrite", (store) => {
+            store.delete(id);
+          });
+          return true;
+        },
+
+        clear: async function(storeName){
+          if (!STORES.includes(storeName)) throw new Error("Invalid store: "+storeName);
+          await runTx(storeName, "readwrite", (store) => {
+            store.clear();
+          });
+          return true;
+        },
+
+        exportAll: async function(){
+          const out = {};
+          for (const s of STORES){
+            out[s] = await this.getAll(s);
+          }
+          return out;
+        },
+
+        importAll: async function(obj){
+          for (const s of STORES){
+            if (Array.isArray(obj[s])){
+              for (const item of obj[s]){
+                if (!item.id) item.id = genId();
+                await this.put(s, item);
+              }
+            }
+          }
+          return true;
+        }
+      };
+
+      // Expose functions globally for backward compatibility
+      window.db = api;
+      window.getAll = (storeName) => db.getAll(storeName);
+      window.addRecord = (storeName, item) => db.add(storeName, item);
+      window.deleteRecord = (storeName, id) => db.delete(storeName, id);
+
+    })(window);
+
+    // =============================================
+    // main.js - Main Application Logic
+    // =============================================
+    (function(window){
+      const CLIENT_ID = "253249814475-79vie8d9ovh5evmh6ra69q01ot8g5rd6.apps.googleusercontent.com";
+      const SCOPES = "https://www.googleapis.com/auth/drive.file";
+
+      let accessToken = null;
+      let tokenClient = null;
+      let autoBackupTimer = null;
+
+      // Initialize Google Identity Services
+      async function initGIS(){
+        return new Promise((resolve,reject)=>{
+          try {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+              client_id: CLIENT_ID,
+              scope: SCOPES,
+              callback: (resp) => {
+                if (resp && resp.access_token) {
+                  accessToken = resp.access_token;
+                  notify("✅ Disambung ke Google Drive", "success");
+                  updateDriveStatus(true);
+                  resolve(accessToken);
+                } else {
+                  reject(new Error("No token"));
+                }
+              }
+            });
+            resolve(true);
+          } catch (err){
+            reject(err);
+          }
+        });
+      }
+
+      // Manual Connect to Google Drive
+      async function manualConnect(){
+        try {
+          if (!tokenClient) await initGIS();
+          tokenClient.requestAccessToken();
+        } catch (err){
+          console.error(err);
+          notify("❌ GIS init error: " + err.message, "error");
+        }
+      }
+
+      // Manual Sign Out
+      function manualSignOut(){
+        accessToken = null;
+        updateDriveStatus(false);
+        notify("👋 Log keluar dari Google Drive", "info");
+      }
+
+      // Update Drive Status
+      function updateDriveStatus(connected){
+        const el = document.getElementById("driveStatus");
+        if (!el) return;
+        el.textContent = connected ? "Drive: Connected ✅" : "Drive: Disconnected ❌";
+        el.className = connected ? "status-connected" : "status-disconnected";
+      }
+
+      // Notification Helper
+      function notify(msg, type="info"){
+        const box = document.getElementById("notifyBox");
+        if (!box) return;
+        const div = document.createElement("div");
+        div.className = `notify ${type}`;
+        div.textContent = msg;
+        box.appendChild(div);
+        setTimeout(()=> div.classList.add("show"), 50);
+        setTimeout(()=> {
+          div.classList.remove("show");
+          setTimeout(()=> div.remove(), 300);
+        }, 3500);
+      }
+
+      // Initialize all forms and tables for SPA
+      async function initializePage(pageId) {
+        console.log('Initializing page:', pageId);
+        switch(pageId) {
+          case 'dashboard':
+            await updateDashboard();
+            break;
+          case 'colonies':
+            await initializeColonies();
+            break;
+          case 'harvests':
+            await initializeHarvests();
+            break;
+          case 'care':
+            await initializeCare();
+            break;
+          case 'sales':
+            await initializeSales();
+            break;
+          case 'inventory':
+            await initializeInventory();
+            break;
+          case 'invoices':
+            await initializeInvoices();
+            break;
+          case 'reports':
+            await updateReports();
+            break;
+          case 'charts':
+            renderChart();
+            break;
+          case 'settings':
+            initializeSettings();
+            break;
+        }
+      }
+
+      // Dashboard functions
+      async function updateDashboard() {
+        try {
+          const colonies = await db.getAll('colonies');
+          const harvests = await db.getAll('harvests');
+          const sales = await db.getAll('sales');
+          const careLogs = await db.getAll('careLogs');
+          
+          const totalHarvest = harvests.reduce((sum, h) => sum + (parseFloat(h.kg) || 0), 0);
+          const monthlySales = sales
+            .filter(s => {
+              const saleDate = new Date(s.date);
+              const now = new Date();
+              return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
+            })
+            .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+          
+          const today = new Date().toDateString();
+          const dueCare = careLogs.filter(c => {
+            const careDate = new Date(c.remindAt);
+            return careDate.toDateString() === today;
+          }).length;
+
+          document.getElementById('countColonies').textContent = colonies.length;
+          document.getElementById('totalHarvest').textContent = totalHarvest.toFixed(1);
+          document.getElementById('monthlySales').textContent = monthlySales.toFixed(2);
+          document.getElementById('dueCare').textContent = dueCare;
+        } catch (error) {
+          console.error('Error updating dashboard:', error);
+        }
+      }
+
+      // Colonies Management
+      async function initializeColonies() {
+        console.log('Initializing colonies page...');
+        
+        const form = document.getElementById('formColony');
+        if (form) {
+          console.log('Colony form found, adding event listener...');
+          
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('Form submitted!');
+            
+            const name = document.getElementById('colonyName').value;
+            const status = document.getElementById('colonyStatus').value;
+            const start = document.getElementById('colonyStart').value;
+            
+            console.log('Form data:', { name, status, start });
+            
+            if (!name) {
+              notify('Sila masukkan nama koloni', 'error');
+              return;
+            }
+            
+            try {
+              console.log('Attempting to add colony to database...');
+              const result = await db.add('colonies', { 
+                name, 
+                status, 
+                start,
+                createdAt: new Date().toISOString()
+              });
+              
+              console.log('Colony added successfully, ID:', result);
+              notify('Koloni berjaya ditambah', 'success');
+              form.reset();
+              await renderColoniesTable();
+              await updateDashboard(); // Update dashboard counts
+              updateDebugInfo(); // Update debug panel
+            } catch (error) {
+              console.error('Error adding colony:', error);
+              notify('Gagal menambah koloni: ' + error.message, 'error');
+            }
+          });
+        } else {
+          console.error('Colony form not found!');
+        }
+        
+        await renderColoniesTable();
+      }
+
+      async function renderColoniesTable() {
+        const tbody = document.querySelector('#colonyTable tbody');
+        if (!tbody) {
+          console.error('Colony table tbody not found!');
+          return;
+        }
+        
+        try {
+          const colonies = await db.getAll('colonies');
+          console.log('Rendering colonies table, count:', colonies.length);
+          tbody.innerHTML = '';
+          
+          if (colonies.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Tiada koloni. Sila tambah koloni baru.</td></tr>';
+            return;
+          }
+          
+          colonies.forEach(colony => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${escapeHtml(colony.name)}</td>
+              <td>${escapeHtml(colony.status)}</td>
+              <td>${escapeHtml(colony.start || '')}</td>
+              <td>
+                <button onclick="deleteColony('${colony.id}')">Padam</button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        } catch (error) {
+          console.error('Error rendering colonies:', error);
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:red;">Error loading colonies</td></tr>';
+        }
+      }
+
+      // Similar functions for other pages (implementasi asas)
+      async function initializeHarvests() {
+        await renderHarvestsTable();
+        await populateColonyDropdown('harvestColony');
+      }
+
+      async function initializeCare() {
+        await renderCareTable();
+        await populateColonyDropdown('careColony');
+      }
+
+      async function initializeSales() {
+        await renderSalesTable();
+      }
+
+      async function initializeInventory() {
+        await renderInventoryTable();
+      }
+
+      async function initializeInvoices() {
+        await renderInvoicesTable();
+      }
+
+      async function updateReports() {
+        try {
+          const colonies = await db.getAll('colonies');
+          const harvests = await db.getAll('harvests');
+          const sales = await db.getAll('sales');
+          
+          const totalHarvest = harvests.reduce((sum, h) => sum + (parseFloat(h.kg) || 0), 0);
+          const monthlySales = sales
+            .filter(s => {
+              const saleDate = new Date(s.date);
+              const now = new Date();
+              return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
+            })
+            .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+
+          document.getElementById('rCountColonies').textContent = colonies.length;
+          document.getElementById('rTotalHarvest').textContent = totalHarvest.toFixed(1);
+          document.getElementById('rMonthlySales').textContent = monthlySales.toFixed(2);
+        } catch (error) {
+          console.error('Error updating reports:', error);
+        }
+      }
+
+      // Helper functions
+      async function populateColonyDropdown(dropdownId) {
+        const dropdown = document.getElementById(dropdownId);
+        if (!dropdown) return;
+        
+        try {
+          const colonies = await db.getAll('colonies');
+          dropdown.innerHTML = '<option value="">Pilih Koloni</option>';
+          colonies.forEach(colony => {
+            const option = document.createElement('option');
+            option.value = colony.id;
+            option.textContent = colony.name;
+            dropdown.appendChild(option);
+          });
+        } catch (error) {
+          console.error('Error populating colony dropdown:', error);
+        }
+      }
+
+      function escapeHtml(str){
+        if (typeof str !== "string") return str;
+        return str.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+      }
+
+      // Basic table renderers (placeholder implementations)
+      async function renderHarvestsTable() {
+        const tbody = document.querySelector('#harvestTable tbody');
+        if (!tbody) return;
+        
+        try {
+          const harvests = await db.getAll('harvests');
+          tbody.innerHTML = '';
+          
+          harvests.forEach(harvest => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${escapeHtml(harvest.colonyId || '')}</td>
+              <td>${escapeHtml(harvest.kg || '')}</td>
+              <td>${escapeHtml(harvest.date || '')}</td>
+              <td><button onclick="deleteRecord('harvests','${harvest.id}')">Padam</button></td>
+            `;
+            tbody.appendChild(row);
+          });
+        } catch (error) {
+          console.error('Error rendering harvests:', error);
+        }
+      }
+
+      async function renderCareTable() {
+        // Similar implementation for care table
+      }
+
+      async function renderSalesTable() {
+        // Similar implementation for sales table
+      }
+
+      async function renderInventoryTable() {
+        // Similar implementation for inventory table
+      }
+
+      async function renderInvoicesTable() {
+        // Similar implementation for invoices table
+      }
+
+      // Export functions to global scope
+      window.manualConnect = manualConnect;
+      window.manualSignOut = manualSignOut;
+      window.manualBackup = manualBackup;
+      window.manualRestore = manualRestore;
+      window.updateDashboard = updateDashboard;
+      window.initializePage = initializePage;
+      window.deleteColony = async (id) => {
+        if (confirm('Padam koloni ini?')) {
+          try {
+            await db.delete('colonies', id);
+            notify('Koloni dipadam', 'success');
+            renderColoniesTable();
+            updateDashboard();
+            updateDebugInfo();
+          } catch (error) {
+            notify('Gagal memadam koloni', 'error');
+          }
+        }
+      };
+      window.deleteRecord = async (storeName, id) => {
+        if (confirm('Padam rekod ini?')) {
+          try {
+            await db.delete(storeName, id);
+            notify('Rekod dipadam', 'success');
+            initializePage(storeName); // Re-render the current page
+            updateDashboard();
+          } catch (error) {
+            notify('Gagal memadam rekod', 'error');
+          }
+        }
+      };
+
+      // Initialize when DOM is ready
+      document.addEventListener('DOMContentLoaded', async () => {
+        console.log('DOM loaded, initializing application...');
+        try {
+          await db.init();
+          console.log('Database initialized successfully');
+          await updateDashboard();
+          updateDebugInfo();
+          
+          // Initialize GIS if Google API is available
+          if (window.google) {
+            await initGIS();
+          }
+        } catch (error) {
+          console.error('Initialization error:', error);
+          notify('Error initializing application: ' + error.message, 'error');
+        }
+      });
+
+    })(window);
+
+    // =============================================
+    // SPA Navigation Script
+    // =============================================
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('Setting up SPA navigation...');
+      
       // Set up navigation buttons
       document.querySelectorAll('.nav-btn').forEach(button => {
         button.addEventListener('click', function() {
           const pageId = this.getAttribute('data-page');
+          console.log('Navigating to page:', pageId);
           showPage(pageId);
         });
       });
       
       // Show dashboard by default
       showPage('dashboard');
-      
-      // Initialize settings page functionality
-      initializeSettings();
     });
     
     function showPage(pageId) {
+      console.log('Showing page:', pageId);
+      
       // Hide all pages
       document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
       });
       
       // Show selected page
-      document.getElementById(pageId).classList.add('active');
-      
-      // Initialize page-specific functions
-      if (pageId === 'charts' && typeof renderChart === 'function') {
-        renderChart();
+      const targetPage = document.getElementById(pageId);
+      if (targetPage) {
+        targetPage.classList.add('active');
+        
+        // Initialize page-specific functions
+        if (typeof initializePage === 'function') {
+          initializePage(pageId);
+        }
+      } else {
+        console.error('Page not found:', pageId);
       }
     }
-    
-    // Settings page initialization
-    function initializeSettings() {
-      // Logo upload functionality
-      document.getElementById("kelulutLogoUpload").addEventListener("change", function(e){
-        const f = e.target.files[0]; 
-        if(!f) return;
-        const fr = new FileReader();
-        fr.onload = function(ev){ 
-          localStorage.setItem("kelulut_logo_data", ev.target.result); 
-          alert("Logo disimpan (untuk invois)."); 
-        };
-        fr.readAsDataURL(f);
-      });
-      
-      // Remove logo functionality
-      document.getElementById("btnRemoveLogo").addEventListener("click", function(){ 
-        localStorage.removeItem('kelulut_logo_data'); 
-        alert('Logo dikeluarkan'); 
-      });
-    }
-  </script>
 
-  <!-- Original Scripts from pages -->
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
-    }
-    
-    window.addEventListener('load', async ()=>{
-      if(typeof initDB==='function') await initDB();
-      if(typeof scheduleDailyBackupAt==='function') scheduleDailyBackupAt(0,0);
-      if(typeof scheduleReminders==='function') scheduleReminders();
-      
-      // Update drive status from PKCE
-      if(typeof DrivePKCE !== 'undefined') {
-        setTimeout(() => {
-          DrivePKCE.handleAuthCallback();
-        }, 100);
-      }
-    });
-
-    // Fungsi carta interaktif
+    // =============================================
+    // Chart.js Functions
+    // =============================================
     function renderChart(){
       const ctx = document.getElementById('chartCanvas').getContext('2d');
       if(window.myChart){ window.myChart.destroy(); }
@@ -458,10 +1001,149 @@
 
       window.myChart = new Chart(ctx, { type: 'line', data, options });
     }
-  </script>
 
-  <!-- Dark mode toggle -->
-  <script>
+    // =============================================
+    // Settings Page Functions
+    // =============================================
+    function initializeSettings() {
+      console.log('Initializing settings page...');
+      
+      // Logo upload functionality
+      const logoUpload = document.getElementById("kelulutLogoUpload");
+      if (logoUpload) {
+        logoUpload.addEventListener("change", function(e){
+          const f = e.target.files[0]; 
+          if(!f) return;
+          const fr = new FileReader();
+          fr.onload = function(ev){ 
+            localStorage.setItem("kelulut_logo_data", ev.target.result); 
+            alert("Logo disimpan (untuk invois)."); 
+          };
+          fr.readAsDataURL(f);
+        });
+      }
+      
+      // Remove logo functionality
+      const removeLogoBtn = document.getElementById("btnRemoveLogo");
+      if (removeLogoBtn) {
+        removeLogoBtn.addEventListener("click", function(){ 
+          localStorage.removeItem('kelulut_logo_data'); 
+          alert('Logo dikeluarkan'); 
+        });
+      }
+    }
+
+    // =============================================
+    // Export/Report Functions
+    // =============================================
+    async function exportStoreXLSX(store) {
+      try {
+        const rows = await getAll(store);
+        if (!rows || rows.length === 0) {
+          alert('⚠️ Tiada data untuk dieksport.');
+          return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, store);
+
+        const stamp = new Date().toISOString().split('T')[0];
+        const filename = `kelulut_${store}_${stamp}.xlsx`;
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+
+        alert(`✅ Berjaya eksport fail Excel: ${filename}`);
+      } catch (e) {
+        console.error(e);
+        alert('❌ Gagal eksport ke Excel: ' + e.message);
+      }
+    }
+
+    async function exportReportPDF(elemId='reportContainer'){
+      const el = document.getElementById(elemId);
+      if(!el) return alert('Report element not found');
+      const canvas = await html2canvas(el, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p','mm','a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 10;
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgWidth = pageWidth - margin*2;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+      const now = new Date();
+      const fname = 'Laporan_Kelulut_' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '.pdf';
+      pdf.save(fname);
+    }
+
+    // =============================================
+    // Debug Functions untuk GitHub Pages
+    // =============================================
+    function toggleDebug() {
+      const panel = document.getElementById('debugPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function clearLocalData() {
+      if (confirm('Clear all local data?')) {
+        localStorage.clear();
+        try {
+          indexedDB.deleteDatabase('KelulutDB');
+          indexedDB.deleteDatabase('kelulut_attachments_db');
+        } catch (e) {}
+        location.reload();
+      }
+    }
+
+    async function testAddColony() {
+      try {
+        const testColony = {
+          name: 'TEST_KOLONI_' + Date.now(),
+          status: 'active',
+          start: new Date().toISOString().split('T')[0]
+        };
+        const id = await db.add('colonies', testColony);
+        document.getElementById('debugInfo').textContent = 'Test colony added: ' + id;
+        await renderColoniesTable();
+        await updateDashboard();
+      } catch (error) {
+        document.getElementById('debugInfo').textContent = 'Test failed: ' + error.message;
+      }
+    }
+
+    async function updateDebugInfo() {
+      try {
+        const colonies = await db.getAll('colonies');
+        const harvests = await db.getAll('harvests');
+        document.getElementById('debugInfo').textContent = 
+          `Colonies: ${colonies.length} | Harvests: ${harvests.length}`;
+      } catch (error) {
+        document.getElementById('debugInfo').textContent = 'DB Error: ' + error.message;
+      }
+    }
+
+    // Auto show debug on error
+    window.addEventListener('error', (e) => {
+      document.getElementById('debugInfo').textContent = `Error: ${e.message}`;
+      document.getElementById('debugPanel').style.display = 'block';
+    });
+
+    // Run check after page load
+    window.addEventListener('load', () => {
+      setTimeout(updateDebugInfo, 1000);
+    });
+
+    // =============================================
+    // Dark mode toggle
+    // =============================================
     (function(){
       try{
         if(localStorage.theme==='light'){
@@ -491,18 +1173,15 @@
         }
       }catch(e){}
     }
-  </script>
 
-  <!-- Sales custom script -->
-  <script>
-    document.addEventListener('click', function(e){
-      if(e.target && e.target.classList && e.target.classList.contains('btn-invoice')){
-        const id = e.target.getAttribute('data-id');
-        const sales = JSON.parse(localStorage.getItem('kelulut_sales_v1')||'[]');
-        const s = sales.find(x=>x.id===id);
-        if(s){ try{ generateInvoicePDF(s); }catch(e){ console.error(e); alert('Gagal jana PDF'); } }
-      }
-    });
+    // Placeholder functions untuk compatibility
+    function manualBackup() {
+      alert('Backup functionality would be implemented here');
+    }
+
+    function manualRestore() {
+      alert('Restore functionality would be implemented here');
+    }
   </script>
 </body>
 </html>
