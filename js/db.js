@@ -1,20 +1,10 @@
 /**
- * db.js
- * Simple promise-based IndexedDB helper for KelulutApp
- *
- * Object stores: colonies, harvests, sales, invoices, inventory
- * Each record has at minimum: id, createdAt, updatedAt, ...custom fields
- *
- * Usage:
- *  await db.init();
- *  const id = await db.add('colonies', { name: 'K1', notes: '' });
- *  const all = await db.getAll('colonies');
+ * db.js - Dikemaskini dengan fungsi getAll()
  */
-
 (function(window){
   const DB_NAME = "KelulutDB";
   const DB_VERSION = 1;
-  const STORES = ["colonies","harvests","sales","invoices","inventory"];
+  const STORES = ["colonies","harvests","sales","invoices","inventory","careLogs"];
 
   const openDB = () => {
     return new Promise((resolve, reject) => {
@@ -40,7 +30,6 @@
   };
 
   const genId = () => {
-    // readable unique id
     return `${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
   };
 
@@ -121,7 +110,6 @@
     },
 
     exportAll: async function(){
-      // Return object with all stores
       const out = {};
       for (const s of STORES){
         out[s] = await this.getAll(s);
@@ -130,7 +118,6 @@
     },
 
     importAll: async function(obj){
-      // obj is {storeName: [items...], ...}
       for (const s of STORES){
         if (Array.isArray(obj[s])){
           for (const item of obj[s]){
@@ -143,7 +130,10 @@
     }
   };
 
-  // expose
+  // Expose functions globally for backward compatibility
   window.db = api;
+  window.getAll = (storeName) => db.getAll(storeName);
+  window.addRecord = (storeName, item) => db.add(storeName, item);
+  window.deleteRecord = (storeName, id) => db.delete(storeName, id);
 
 })(window);
